@@ -3,18 +3,21 @@ import os
 import random
 import asyncio
 import json
+from pymongo import MongoClient
 
 with open('config.json') as config_file:
     config = json.load(config_file)
     token = config['token']
     master_user = config['master_user']
+    database_name = config['database_name']
+
+mgclient = MongoClient()
+db = mgclient[database_name]
 
 import discord
 from discord.ext import commands
 
 bot = commands.Bot(command_prefix='!')
-
-
 
 @bot.event
 async def on_connect():
@@ -69,13 +72,22 @@ async def background_loop():
     while bot.is_ready:
         print("Async loop: Loop functional.")
         need_to_message = False
+        collection = db["queued_messages"]
+        need_to_message = collection.find_one()
+        print("Need to message: {}".format(need_to_message))
         if need_to_message:
             user = bot.get_user(master_user["id"])
+            print("Message found. Starting Delay")
+            delay_time = 15
+            #delay_time = 43 * 60 + random.randint(1, int((30*60)/2)) # Weirdly random delay time.
+            print("Async loop: Delaying for {} seconds".format(delay_time))
+            await asyncio.sleep(delay_time)
             print("Sending to: {}".format(user.id))
-            await user.send("A random message. Hurrah!")
-        delay_time = 43 * 60 + random.randint(1, int((30*60)/2)) # Weirdly random delay time.
-        print("Async loop: Delaying for {} seconds".format(delay_time))
-        await asyncio.sleep(delay_time)
+            await user.send(need_to_message['message'])
+            collection.delete_one({})
+        else:
+            print("Async loop: Delaying for 30 seconds.")
+            await asyncio.sleep(30)
 
 bot.loop.create_task(background_loop())
 bot.run(token)
